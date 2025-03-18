@@ -80,11 +80,13 @@ public class UserProfileServlet extends HttpServlet {
         // String insertQuery = "INSERT INTO user_data (user_id, email) VALUES ('" + userId + "', '" + newEmail + "')";
         // conn.createStatement().executeUpdate(insertQuery);
         // CAST + LLM refactored code:
-        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
-             PreparedStatement insertStmt = conn.prepareStatement("INSERT INTO user_data (user_id, email) VALUES (?, ?)")) {
-            insertStmt.setString(1, userId);
-            insertStmt.setString(2, newEmail);
-            insertStmt.executeUpdate();
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
+            String insertQuery = "INSERT INTO user_data (user_id, email) VALUES (?, ?)";
+            try (PreparedStatement pstmt = conn.prepareStatement(insertQuery)) {
+                pstmt.setString(1, userId);
+                pstmt.setString(2, newEmail);
+                pstmt.executeUpdate();
+            }
         } catch (SQLException e) {
             response.getWriter().write("Error storing user data: " + e.getMessage());
             return;
@@ -145,13 +147,15 @@ public class UserProfileServlet extends HttpServlet {
         // String query = "SELECT * FROM user_data WHERE user_id = '" + userId + "'";
         // ResultSet rs = conn.createStatement().executeQuery(query);
         // CAST + LLM refactored code:
-        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
-             PreparedStatement selectStmt = conn.prepareStatement("SELECT * FROM user_data WHERE user_id = ?")) {
-            selectStmt.setString(1, userId);
-            try (ResultSet rs = selectStmt.executeQuery()) {
-                while (rs.next()) {
-                    response.getWriter().write("User ID: " + rs.getString("user_id") + "<br>");
-                    response.getWriter().write("Email: " + rs.getString("email") + "<br>");
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
+            String query = "SELECT * FROM user_data WHERE user_id = ?";
+            try (PreparedStatement pstmt = conn.prepareStatement(query)) {
+                pstmt.setString(1, userId);
+                try (ResultSet rs = pstmt.executeQuery()) {
+                    while (rs.next()) {
+                        response.getWriter().write("User ID: " + rs.getString("user_id") + "<br>");
+                        response.getWriter().write("Email: " + rs.getString("email") + "<br>");
+                    }
                 }
             }
         } catch (SQLException e) {
