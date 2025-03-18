@@ -12,7 +12,8 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import org.apache.commons.text.StringEscapeUtils; // Import for input sanitization
+
+import org.apache.commons.text.StringEscapeUtils; // Import for escaping HTML
 
 
 // CAST + LLM refactored code
@@ -25,36 +26,45 @@ public class UserProfileServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        // Sanitize user inputs using StringEscapeUtils from Apache Commons Text
-        String userId = StringEscapeUtils.escapeHtml4(request.getParameter("userId"));  // Sanitize for HTML context as it's later displayed
-        String newEmail = StringEscapeUtils.escapeHtml4(request.getParameter("newEmail")); // Sanitize for HTML context
+        String userId = request.getParameter("userId");
+        String newEmail = request.getParameter("newEmail");
 
-        // Use prepared statements to prevent SQL injection
-        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
-            // Prepared statement for INSERT query
-            String insertQuery = "INSERT INTO user_data (user_id, email) VALUES (?, ?)";
-            try (PreparedStatement pstmt = conn.prepareStatement(insertQuery)) {
-                pstmt.setString(1, userId);
-                pstmt.setString(2, newEmail);
-                pstmt.executeUpdate();
-            }
+        // Sanitize inputs to prevent XSS (Cross-Site Scripting)
+        userId = StringEscapeUtils.escapeHtml4(userId);
+        newEmail = StringEscapeUtils.escapeHtml4(newEmail);
 
-            // Prepared statement for SELECT query
-            String query = "SELECT * FROM user_data WHERE user_id = ?";
-            try (PreparedStatement pstmt = conn.prepareStatement(query)) {
-                pstmt.setString(1, userId);
-                try (ResultSet rs = pstmt.executeQuery()) {
-                    while (rs.next()) {
-                        // Escape output to prevent XSS vulnerabilities
-                        response.getWriter().write("User ID: " + StringEscapeUtils.escapeHtml4(rs.getString("user_id")) + "<br>");
-                        response.getWriter().write("Email: " + StringEscapeUtils.escapeHtml4(rs.getString("email")) + "<br>");
-                    }
-                }
-            }
 
+        // Use PreparedStatement for the INSERT query to prevent SQL injection
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+             PreparedStatement insertStmt = conn.prepareStatement("INSERT INTO user_data (user_id, email) VALUES (?, ?)")) {
+
+            insertStmt.setString(1, userId);
+            insertStmt.setString(2, newEmail);
+            insertStmt.executeUpdate();
 
         } catch (SQLException e) {
-            response.getWriter().write("Error handling user data: " + e.getMessage()); // Generic error message for security reasons
+            response.getWriter().write("Error storing user data: " + e.getMessage());
+            return; // Stop processing if data storage fails
+        }
+
+        // Use PreparedStatement for the SELECT query to prevent Second Order SQL Injection
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+             PreparedStatement selectStmt = conn.prepareStatement("SELECT * FROM user_data WHERE user_id = ?")) {
+
+            selectStmt.setString(1, userId); // Use parameterized query
+            ResultSet rs = selectStmt.executeQuery();
+
+            while (rs.next()) {
+                // Escape HTML in output to prevent XSS
+                String escapedUserId = StringEscapeUtils.escapeHtml4(rs.getString("user_id"));
+                String escapedEmail = StringEscapeUtils.escapeHtml4(rs.getString("email"));
+
+
+                response.getWriter().write("User ID: " + escapedUserId + "<br>");
+                response.getWriter().write("Email: " + escapedEmail + "<br>");
+            }
+        } catch (SQLException e) {
+            response.getWriter().write("Error fetching user data: " + e.getMessage());
         }
     }
 }
@@ -63,24 +73,21 @@ public class UserProfileServlet extends HttpServlet {
 
 Key Changes and Explanations:
 
-1. **Input Sanitization:** The code now uses `StringEscapeUtils.escapeHtml4()` from Apache Commons Text to sanitize user inputs (`userId` and `newEmail`). This helps prevent Cross-Site Scripting (XSS) vulnerabilities by escaping HTML special characters.  It's important to sanitize both at the point of storage *and* when data is rendered.
+1. **Prepared Statements:** The code now uses `PreparedStatement` for both the `INSERT` and `SELECT` queries.  This is the most crucial change to prevent SQL injection (both first-order and second-order). Prepared statements precompile the SQL query, treating user inputs as parameters rather than part of the SQL code itself.  This prevents malicious code injection.
 
-2. **Prepared Statements:**  Both the `INSERT` and `SELECT` queries now use `PreparedStatement`. This is the most crucial change to prevent SQL injection.  Placeholders (`?`) are used in the SQL query, and the actual values are set using `pstmt.setString()`. This ensures that user input is treated as data, not as part of the SQL command.
+2. **Input Sanitization (XSS Prevention):** The code uses `StringEscapeUtils.escapeHtml4()` from Apache Commons Text to sanitize user inputs (`userId` and `newEmail`) before storing them in the database and before displaying them back to the user.  This helps prevent Cross-Site Scripting (XSS) attacks.  You'll need to add the `commons-text` dependency to your project:
 
-3. **Try-with-resources:** The code uses try-with-resources to ensure that database connections, prepared statements, and result sets are closed automatically, even if exceptions occur.
+   ```xml
+   <dependency>
+       <groupId>org.apache.commons</groupId>
+       <artifactId>commons-text</artifactId>
+       <version>1.10.0</version>  <!-- Or latest version -->
+   </dependency>
+   ```
 
-4. **Generic Error Message:** The error message provided to the user is now generic ("Error handling user data...") to avoid revealing sensitive information about the database or the application's internals.
+3. **Error Handling:**  The code now includes a `return` statement after writing the error message in the `catch` block of the `INSERT` section. This prevents the code from continuing to execute the vulnerable `SELECT` statement if there was an error storing the data, which could potentially expose other vulnerabilities.
 
-
-To use `StringEscapeUtils`, you'll need to add the Apache Commons Text dependency to your project's `pom.xml` (if you're using Maven):
-
-```xml
-<dependency>
-    <groupId>org.apache.commons</groupId>
-    <artifactId>commons-text</artifactId>
-    <version>1.10.0</version>  <!-- Or a later version -->
-</dependency>
-```
+4. **Comments:**  Comments have been added to explain the changes and the purpose of using prepared statements and input sanitization.
 
 
-This refactored code addresses the second-order SQL injection vulnerability and also improves overall security by mitigating XSS risks and using best practices for resource management.  Remember to sanitize all user inputs appropriately based on the context (HTML, JavaScript, etc.) where the data will be used.
+By implementing these changes, the code is now significantly more secure and resistant to both SQL injection and XSS vulnerabilities.  Always prioritize using parameterized queries/prepared statements whenever dealing with user-supplied data in database interactions.
