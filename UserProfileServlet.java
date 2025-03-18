@@ -12,8 +12,8 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import org.apache.commons.text.StringEscapeUtils; // Import for HTML escaping
 
+import org.apache.commons.text.StringEscapeUtils; // Import for input sanitization
 
 // CAST + LLM refactored code
 public class UserProfileServlet extends HttpServlet {
@@ -25,67 +25,63 @@ public class UserProfileServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        String userId = request.getParameter("userId");
-        String newEmail = request.getParameter("newEmail");
+        // Sanitize user inputs using StringEscapeUtils from Apache Commons Text
+        String userId = StringEscapeUtils.escapeHtml4(request.getParameter("userId")); 
+        String newEmail = StringEscapeUtils.escapeHtml4(request.getParameter("newEmail"));
 
 
-        // Sanitize user inputs to prevent XSS (Cross-Site Scripting)
-        String safeUserId = StringEscapeUtils.escapeHtml4(userId);  // Escape HTML special characters
-        String safeNewEmail = StringEscapeUtils.escapeHtml4(newEmail);
+        // Use PreparedStatement to prevent SQL injection for INSERT
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+             PreparedStatement insertStmt = conn.prepareStatement("INSERT INTO user_data (user_id, email) VALUES (?, ?)")) {
 
-        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
-
-            // Use PreparedStatement for parameterized queries to prevent SQL injection
-            String insertQuery = "INSERT INTO user_data (user_id, email) VALUES (?, ?)";
-            try (PreparedStatement pstmt = conn.prepareStatement(insertQuery)) {
-                pstmt.setString(1, safeUserId); // Use sanitized input
-                pstmt.setString(2, safeNewEmail); // Use sanitized input
-                pstmt.executeUpdate();
-            }
-
-
-            // Use PreparedStatement for the SELECT query as well
-            String query = "SELECT * FROM user_data WHERE user_id = ?";
-            try (PreparedStatement pstmt = conn.prepareStatement(query)) {
-                pstmt.setString(1, safeUserId); // Use sanitized input
-                try (ResultSet rs = pstmt.executeQuery()) {
-                    while (rs.next()) {
-                        // Escape HTML in the output to prevent XSS vulnerabilities
-                       String escapedUserId = StringEscapeUtils.escapeHtml4(rs.getString("user_id"));
-                       String escapedEmail =  StringEscapeUtils.escapeHtml4(rs.getString("email"));
-
-                       response.getWriter().write("User ID: " + escapedUserId + "<br>");
-                        response.getWriter().write("Email: " + escapedEmail+ "<br>");
-                    }
-                }
-            }
-
+            insertStmt.setString(1, userId);
+            insertStmt.setString(2, newEmail);
+            insertStmt.executeUpdate();
 
         } catch (SQLException e) {
-           response.getWriter().write("Error: " + e.getMessage()); // Minimize error information leakage
+            response.getWriter().write("Error storing user data: " + e.getMessage());
+            return; // Important to return after an error to prevent further execution
+        }
+
+        // Use PreparedStatement to prevent SQL injection for SELECT
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+             PreparedStatement selectStmt = conn.prepareStatement("SELECT * FROM user_data WHERE user_id = ?")) {
+
+            selectStmt.setString(1, userId); // Set the parameter value safely
+            ResultSet rs = selectStmt.executeQuery();
+
+            while (rs.next()) {
+                response.getWriter().write("User ID: " + rs.getString("user_id") + "<br>");
+                response.getWriter().write("Email: " + rs.getString("email") + "<br>");
+            }
+
+        } catch (SQLException e) {
+            response.getWriter().write("Error fetching user data: " + e.getMessage());
         }
     }
 }
-
 ```
+
 
 Key Changes and Explanations:
 
-1. **Prepared Statements:** The code now uses `PreparedStatement` for both the `INSERT` and `SELECT` queries. This is the most crucial change to prevent SQL injection.  Placeholders (`?`) are used instead of concatenating user input directly into the SQL query string. This prevents malicious SQL code from being injected.
+1. **Input Sanitization:**  The code now uses `StringEscapeUtils.escapeHtml4()` from the Apache Commons Text library to sanitize user inputs (`userId` and `newEmail`). This helps prevent XSS vulnerabilities if the data is later displayed in a web page.  While not strictly part of preventing SQL injection, it's a crucial security practice to sanitize all user inputs.
 
-2. **Input Sanitization (XSS Prevention):** The code now uses `StringEscapeUtils.escapeHtml4()` from Apache Commons Text to sanitize user inputs (`userId` and `newEmail`) *before* storing them in the database and also *before* outputting them to the response.  This prevents Cross-Site Scripting (XSS) attacks by escaping HTML special characters.
+2. **Prepared Statements:**  The code uses `PreparedStatement` for both the `INSERT` and `SELECT` queries. This is the most effective way to prevent SQL injection.  Prepared statements precompile the SQL query and treat user inputs as parameters, preventing them from being interpreted as SQL code.
 
-3. **Dependency:** You'll need to add the Apache Commons Text dependency to your project:
+3. **Parameter Setting:**  Placeholders (`?`) are used in the SQL query string, and the `setString()` method of the `PreparedStatement` is used to set the values of the parameters safely.  This separates the SQL code from the user-provided data.
 
-   ```xml
-   <dependency>
-       <groupId>org.apache.commons</groupId>
-       <artifactId>commons-text</artifactId>
-       <version>1.10.0</version>  <!-- Or latest version -->
-   </dependency>
-   ```
+4. **Error Handling:**  The code includes a `return` statement after handling the `SQLException` in the insertion block. This prevents the code from continuing to the `SELECT` statement if there's an error during insertion. This is a good practice to avoid unexpected behavior.
 
-4. **Minimized Error Information Leakage:** The error message printed to the user is now less specific to avoid revealing internal details that could be exploited by attackers.
+5. **Dependency:**  You'll need to add the Apache Commons Text dependency to your project.  For Maven, add the following to your `pom.xml`:
+
+```xml
+<dependency>
+    <groupId>org.apache.commons</groupId>
+    <artifactId>commons-text</artifactId>
+    <version>1.10.0</version>  <!-- Use the latest version -->
+</dependency>
+```
 
 
-By using parameterized queries and output encoding, the refactored code effectively mitigates the second-order SQL injection vulnerability and also protects against XSS attacks. This makes the application much more secure.
+By implementing these changes, the code is now protected against second-order SQL injection vulnerabilities.  The user input stored in the database is sanitized, and it's treated as data, not executable code, when used in subsequent queries.
