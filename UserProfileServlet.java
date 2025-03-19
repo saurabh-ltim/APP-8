@@ -21,9 +21,12 @@ public class UserProfileServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         
-        String userId = request.getParameter("userId"); // User input stored in DB
+        String userId = request.getParameter("userId"); 
         String newEmail = request.getParameter("newEmail");
 
+        // VIOLATION: (CAST Rule 8420) Avoid second order SQL injection
+        //SQL injection (second order) - The application stores data in a database. At a later time, the data is subsequently read back into the application and included in another SQL query without prior validation and sanitization.                
+                
         // Store user-provided data in the database
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
             String insertQuery = "INSERT INTO user_data (user_id, email) VALUES ('" + userId + "', '" + newEmail + "')";
