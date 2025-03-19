@@ -29,34 +29,41 @@ public class UserProfileServlet extends HttpServlet {
         String userId = request.getParameter("userId");
         String newEmail = request.getParameter("newEmail");
 
-        // Escape user inputs BEFORE storing in the database
-        String escapedUserId = StringEscapeUtils.escapeHtml4(userId); 
-        String escapedNewEmail = StringEscapeUtils.escapeHtml4(newEmail);
+        // Sanitize inputs using escaping  (Primary Defense)
+        String safeUserId = StringEscapeUtils.escapeHtml4(userId);  // Escape for HTML context (if userId is displayed)
+        String safeNewEmail = StringEscapeUtils.escapeHtml4(newEmail);
 
 
-        // Store user-provided data in the database using PreparedStatement
-        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
-             PreparedStatement insertStmt = conn.prepareStatement("INSERT INTO user_data (user_id, email) VALUES (?, ?)")) {
-
-            insertStmt.setString(1, escapedUserId);  // Use parameterized query
-            insertStmt.setString(2, escapedNewEmail); // Use parameterized query
-            insertStmt.executeUpdate();
-
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
+            // Use PreparedStatement for parameterized queries (Main defense against SQL Injection)
+            String insertQuery = "INSERT INTO user_data (user_id, email) VALUES (?, ?)";
+            try (PreparedStatement pstmt = conn.prepareStatement(insertQuery)) {
+                pstmt.setString(1, safeUserId); 
+                pstmt.setString(2, safeNewEmail);
+                pstmt.executeUpdate();
+            }
         } catch (SQLException e) {
             response.getWriter().write("Error storing user data: " + e.getMessage());
-            return; // Important: Exit the method after an error
+            return; // Important: Exit the method after an error to prevent further execution
         }
 
-        //  Use PreparedStatement to prevent Second Order SQL Injection
-        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
-             PreparedStatement selectStmt = conn.prepareStatement("SELECT * FROM user_data WHERE user_id = ?")) {
 
-            selectStmt.setString(1, escapedUserId); // Parameterized query
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
+            // Use PreparedStatement for the SELECT query as well
+            String query = "SELECT * FROM user_data WHERE user_id = ?";
+            try (PreparedStatement pstmt = conn.prepareStatement(query)) {
+                pstmt.setString(1, safeUserId); // Use the sanitized userId
+                try (ResultSet rs = pstmt.executeQuery()) {
 
-            try (ResultSet rs = selectStmt.executeQuery()) {
-                while (rs.next()) {
-                    response.getWriter().write("User ID: " + rs.getString("user_id") + "<br>");
-                    response.getWriter().write("Email: " + rs.getString("email") + "<br>");
+                    while (rs.next()) {
+
+                        // Escape data retrieved from the database before displaying it on the webpage.
+                        String escapedUserId = StringEscapeUtils.escapeHtml4(rs.getString("user_id"));
+                        String escapedEmail = StringEscapeUtils.escapeHtml4(rs.getString("email"));
+
+                        response.getWriter().write("User ID: " + escapedUserId + "<br>");
+                        response.getWriter().write("Email: " + escapedEmail + "<br>");
+                    }
                 }
             }
 
@@ -67,18 +74,23 @@ public class UserProfileServlet extends HttpServlet {
 }
 ```
 
+**Key Improvements:**
 
-Key Changes and Explanations:
+1. **Parameterized Queries (PreparedStatement):** This is the most crucial change.  PreparedStatements precompile the SQL query, treating user inputs as parameters rather than part of the query itself. This prevents SQL injection vulnerabilities effectively.
 
-1. **Escaping Before Database Storage:**  Crucially, the user inputs (`userId`, `newEmail`) are escaped using `StringEscapeUtils.escapeHtml4()` *before* they are stored in the database. This prevents the malicious data from being persistently stored, which is the root of second-order injection.
+2. **Input Sanitization (Escaping):**  Using `StringEscapeUtils.escapeHtml4()` from Apache Commons Text (or similar library) ensures that any HTML special characters in the user input are escaped, preventing XSS (Cross-Site Scripting) vulnerabilities if you are displaying the data back to the user in an HTML context.
 
-2. **Consistent Parameterized Queries:**  Both the `INSERT` and `SELECT` statements now use `PreparedStatement`.  This is the most important change.  Parameterized queries completely prevent SQL injection because the user input is treated as data, not as part of the SQL command.
+3. **Consistent Sanitization:** Sanitize user input *before* storing it in the database.  This prevents potential issues if the data is used in other parts of your application or displayed in different contexts.
 
-3. **Dependency:** The code now uses `org.apache.commons.text.StringEscapeUtils` for HTML escaping. Make sure you include the `commons-text` dependency in your project (e.g., in your `pom.xml` if using Maven).
+4. **Dependency:** You will need to add the Apache Commons Text dependency to your project:
 
-4. **Return After Error:**  In the first `try-catch` block, a `return;` statement is added after handling the `SQLException`.  This prevents the code from continuing to the vulnerable `SELECT` statement if there's an error during the `INSERT`.
+   ```xml
+   <dependency>
+       <groupId>org.apache.commons</groupId>
+       <artifactId>commons-text</artifactId>
+       <version>1.10.0</version>  <!-- Or latest version -->
+   </dependency>
+   ```
 
-5. **Try-with-Resources:** The code uses try-with-resources to ensure proper closing of database connections and statements.
 
-
-This revised code addresses the second-order SQL injection vulnerability by preventing malicious data from being stored in the database in the first place and by using parameterized queries consistently.  It is now much more secure.
+By combining parameterized queries and appropriate escaping, you effectively mitigate the second-order SQL injection vulnerability and improve the overall security of your web application.  Always sanitize on output as well, especially when dealing with data that has been stored in the database (as shown in the refactored code when displaying the results).  This adds an extra layer of defense.
