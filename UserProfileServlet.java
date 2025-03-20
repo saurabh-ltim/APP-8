@@ -27,15 +27,15 @@ public class UserProfileServlet extends HttpServlet {
         String userId = request.getParameter("userId"); 
         String newEmail = request.getParameter("newEmail");
 
-        // Sanitize inputs before using them in ANY query
-        String safeUserId = StringEscapeUtils.escapeJava(userId);  // Escape for Java String contexts
-        String safeNewEmail = StringEscapeUtils.escapeJava(newEmail);
 
+        // Sanitize inputs BEFORE storing them in the database
+        String safeUserId = StringEscapeUtils.escapeHtml4(userId);  // Escape HTML characters
+        String safeNewEmail = StringEscapeUtils.escapeHtml4(newEmail);
 
         // Store user-provided data in the database using PreparedStatement
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
              PreparedStatement insertStmt = conn.prepareStatement("INSERT INTO user_data (user_id, email) VALUES (?, ?)")) {
-
+            
             insertStmt.setString(1, safeUserId);
             insertStmt.setString(2, safeNewEmail);
             insertStmt.executeUpdate();
@@ -45,10 +45,10 @@ public class UserProfileServlet extends HttpServlet {
             return; // Important: exit the method after an error
         }
 
-        // Query using PreparedStatement to prevent Second Order SQL Injection
+        // Use PreparedStatement for the SELECT query as well
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
              PreparedStatement selectStmt = conn.prepareStatement("SELECT * FROM user_data WHERE user_id = ?")) {
-             
+
             selectStmt.setString(1, safeUserId); // Use the sanitized userId
             ResultSet rs = selectStmt.executeQuery();
 
@@ -61,15 +61,13 @@ public class UserProfileServlet extends HttpServlet {
         }
     }
 }
-
 ```
 
+**Key Changes and Explanations:**
 
-Key Changes and Explanations:
+1. **Input Sanitization:**  The code now uses `StringEscapeUtils.escapeHtml4()` from Apache Commons Text to sanitize both `userId` and `newEmail` *before* they are used in any database operations. This is crucial to prevent the injection of malicious HTML or JavaScript that could be stored in the database and later executed when retrieved.  This addresses the root cause of second-order SQL injection.
 
-1. **Input Sanitization:** The code now uses `StringEscapeUtils.escapeJava()` from Apache Commons Text to sanitize both `userId` and `newEmail` *before* they are used in any database operations.  This escaping is crucial to prevent injection attacks, even if the data has been stored in the database.  Escaping for Java String contexts helps prevent issues if the data is later used in other parts of the application.
-
-2. **Prepared Statements (Everywhere):**  Both the `INSERT` and `SELECT` statements are now constructed using `PreparedStatement`. This is the most important change to prevent SQL injection.  Prepared statements separate the SQL code from the data, making it impossible for malicious input to be interpreted as SQL commands.
+2. **Prepared Statements (Everywhere):**  The code uses `PreparedStatement` for *both* the `INSERT` and `SELECT` queries. This is the most important change. Prepared statements precompile the SQL query, separating the SQL code from the user-provided data. This prevents the database from interpreting user input as SQL commands.
 
 3. **Dependency:** You'll need to add the Apache Commons Text dependency to your project. In a Maven project, add this to your `pom.xml`:
 
@@ -77,20 +75,18 @@ Key Changes and Explanations:
 <dependency>
     <groupId>org.apache.commons</groupId>
     <artifactId>commons-text</artifactId>
-    <version>1.10.0</version>  <!-- Use the latest version -->
+    <version>1.10.0</version>  <!-- Or latest version -->
 </dependency>
 ```
 
-4. **Return After Error:** In the first `try-catch` block, a `return` statement has been added after the error handling. This prevents the code from continuing to execute the vulnerable `SELECT` statement if there's an error during the `INSERT`.
+4. **Return After Error:**  In the first `try-catch` block, after catching the `SQLException`, the code now includes `return;`. This is important to prevent the code from continuing to execute the vulnerable `SELECT` statement if there was an error during the `INSERT`.
 
-5. **Consistent Sanitization:** Critically, the sanitized `safeUserId` is used consistently throughout the code, both for inserting and retrieving data. This ensures complete protection against second-order SQL injection.
+**Why this solution is more robust:**
 
-
-Why escaping and Prepared Statements are used together:
-
-* **Defense in Depth:** While Prepared Statements are the primary defense against SQL injection, escaping provides an additional layer of protection, especially in cases where data might be used in contexts other than database queries.
-
-* **Context-Specific Escaping:** Different contexts require different escaping methods. `StringEscapeUtils.escapeJava()` ensures the data is safe for use within Java strings, which could be important if you later use the retrieved data in other parts of your application.  You would use different escaping functions (e.g., `escapeHtml4()`) if you were displaying the data directly in HTML.
+* **Defense in Depth:**  Even if an attacker manages to bypass the initial input sanitization (though unlikely with proper escaping), the use of prepared statements provides a second layer of defense, preventing the injected code from being executed as SQL.
+* **OWASP Compliance:** This approach aligns with OWASP recommendations for preventing SQL injection.  Parameterization (using PreparedStatements) is the preferred method.
+* **Maintainability:** Using PreparedStatements makes the code cleaner, easier to read, and less prone to errors.
 
 
-This revised code comprehensively addresses the second-order SQL injection vulnerability by sanitizing all user inputs before they are used in database queries and consistently using parameterized queries (PreparedStatements) for all database interactions.  This is the recommended and most secure way to prevent this type of vulnerability.
+
+This revised code addresses the CAST violation and significantly improves the security of the application against second-order SQL injection. Remember to choose the appropriate escaping method (e.g., `escapeHtml4`, `escapeJava`, `escapeEcmaScript`) based on the context where the data will be used after retrieval from the database.  If you are not displaying the data in HTML, you might not need HTML escaping specifically.  However, always use PreparedStatements regardless of the escaping method used.
