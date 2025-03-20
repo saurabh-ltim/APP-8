@@ -10,12 +10,4 @@ public class GreetingMessage {
 
         return greeting + "!";
     }
-
-    public static void main(String[] args) {
-        GreetingMessage example = new GreetingMessage();
-        String[] names = {"Alice", "Bob", "Charlie"};
-
-        String result = example.buildGreetingMessage(names);
-        System.out.println(result); 
-    }
 }
