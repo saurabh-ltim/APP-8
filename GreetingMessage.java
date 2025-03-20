@@ -1,3 +1,5 @@
+package com.utc.org1.module1;
+
 public class GreetingMessage {
 
     public String buildGreetingMessage(String[] names) {
