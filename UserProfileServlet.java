@@ -1,4 +1,3 @@
-```java
 package com.utc.org1.module1;
 
 import java.sql.Connection;
@@ -13,9 +12,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 
-import org.apache.commons.text.StringEscapeUtils;
-
-
 public class UserProfileServlet extends HttpServlet {
     
     private static final String DB_URL = "jdbc:mysql://localhost:3306/userdb";
@@ -25,8 +21,8 @@ public class UserProfileServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         
-        String userId = StringEscapeUtils.escapeHtml4(request.getParameter("userId")); 
-        String newEmail = StringEscapeUtils.escapeHtml4(request.getParameter("newEmail"));
+        String userId = request.getParameter("userId"); 
+        String newEmail = request.getParameter("newEmail");
 
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
             String insertQuery = "INSERT INTO user_data (user_id, email) VALUES (?, ?)";
@@ -51,10 +47,8 @@ public class UserProfileServlet extends HttpServlet {
                     }
                 }
             }
-
         } catch (SQLException e) {
             response.getWriter().write("Error fetching user data: " + e.getMessage());
         }
     }
 }
-```
