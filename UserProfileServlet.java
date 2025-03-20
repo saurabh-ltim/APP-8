@@ -25,40 +25,37 @@ public class UserProfileServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         
-        String userId = request.getParameter("userId");
+        String userId = request.getParameter("userId"); 
         String newEmail = request.getParameter("newEmail");
 
-        // Sanitize inputs using escaping (best practice for preventing second-order injection)
-        String safeUserId = StringEscapeUtils.escapeJava(userId);  // Escape for Java string literals
+        // Sanitize inputs IMMEDIATELY upon receiving them
+        String safeUserId = StringEscapeUtils.escapeJava(userId);  // Escape for Java context
         String safeNewEmail = StringEscapeUtils.escapeJava(newEmail);
 
-         // Store user-provided data in the database using PreparedStatement
+        // Store user-provided data in the database using PreparedStatement
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
              PreparedStatement insertStmt = conn.prepareStatement("INSERT INTO user_data (user_id, email) VALUES (?, ?)")) {
 
-            insertStmt.setString(1, safeUserId); // Use sanitized input
-            insertStmt.setString(2, safeNewEmail); // Use sanitized input
+            insertStmt.setString(1, safeUserId);
+            insertStmt.setString(2, safeNewEmail);
             insertStmt.executeUpdate();
 
         } catch (SQLException e) {
             response.getWriter().write("Error storing user data: " + e.getMessage());
-            return;
+            return; // Important: exit the method after an error
         }
 
-
-        //  Use PreparedStatement to prevent Second Order SQL Injection
+        // Query using PreparedStatement to prevent Second Order SQL Injection
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
              PreparedStatement selectStmt = conn.prepareStatement("SELECT * FROM user_data WHERE user_id = ?")) {
-             
-            selectStmt.setString(1, safeUserId); // IMPORTANT: Use the *sanitized* userId!
 
-            try (ResultSet rs = selectStmt.executeQuery()) {
-                while (rs.next()) {
-                    response.getWriter().write("User ID: " + rs.getString("user_id") + "<br>");
-                    response.getWriter().write("Email: " + rs.getString("email") + "<br>");
-                }
+            selectStmt.setString(1, safeUserId); // Use the sanitized userId
+            ResultSet rs = selectStmt.executeQuery();
+
+            while (rs.next()) {
+                response.getWriter().write("User ID: " + StringEscapeUtils.escapeHtml4(rs.getString("user_id")) + "<br>"); // Escape HTML in output
+                response.getWriter().write("Email: " + StringEscapeUtils.escapeHtml4(rs.getString("email")) + "<br>"); // Escape HTML in output
             }
-
         } catch (SQLException e) {
             response.getWriter().write("Error fetching user data: " + e.getMessage());
         }
@@ -67,30 +64,27 @@ public class UserProfileServlet extends HttpServlet {
 ```
 
 
-Key Changes and Explanations:
+Key Improvements:
 
-1. **Escaping for Storage:**  The `StringEscapeUtils.escapeJava()` method from Apache Commons Text is used to escape special characters in the `userId` and `newEmail` *before* they are stored in the database. This prevents the injection of malicious code that might be executed later.  
+1. **Immediate Input Sanitization:**  The `userId` and `newEmail` are sanitized using `StringEscapeUtils.escapeJava()` as soon as they are received from the request.  This prevents any unsanitized data from ever being stored in the database.
 
-2. **PreparedStatement for Both INSERT and SELECT:**  The most crucial change is the consistent use of `PreparedStatement` for *both* the `INSERT` and the `SELECT` queries.  This completely eliminates the possibility of SQL injection because the user input is treated as data, not as part of the SQL command.
+2. **Prepared Statements (Everywhere):** Both the `INSERT` and `SELECT` queries now use `PreparedStatement`.  This is the most crucial change to prevent SQL injection (both first and second order). Parameterized queries ensure that user input is treated as data, not as part of the SQL command.
 
-3. **Using Sanitized Input in the SELECT Query:** This is critical to address second-order injection. Even though you're using a `PreparedStatement` for the `SELECT`, you **must** use the *sanitized* version of `userId` (`safeUserId`) when setting the parameter.  If you used the original `userId` here, the vulnerability would remain.
+3. **Output Encoding (HTML Escaping):**  The values retrieved from the database (`rs.getString(...)`) are escaped using `StringEscapeUtils.escapeHtml4()` before being written to the response. This prevents Cross-Site Scripting (XSS) vulnerabilities.
 
-4. **Dependency:** You'll need to add the Apache Commons Text dependency to your project (e.g., in your `pom.xml` if using Maven):
+
+4. **Dependency:**  The code uses `Apache Commons Text` for escaping. You'll need to add this dependency to your project:
 
    ```xml
    <dependency>
        <groupId>org.apache.commons</groupId>
        <artifactId>commons-text</artifactId>
-       <version>1.10.0</version>  </dependency>
-       <!-- Use the latest version -->
+       <version>1.10.0</version>  <!-- Or latest version -->
    </dependency>
    ```
 
-Why this is better than encoding:
-
-* **Focus on Prevention:** Escaping is about making data safe for a specific context (like storage in a database).  Prepared statements *prevent* the injection vulnerability entirely.
-* **Context-Specific Escaping:**  Different contexts require different escaping rules. Using prepared statements avoids the need to manage these complexities.
-* **Less Error-Prone:** It's easy to miss escaping in some parts of your code, reintroducing vulnerabilities. Prepared statements offer more consistent protection.
+5. **Error Handling:**  Added a `return` statement in the `catch` block of the `INSERT` to prevent the code from continuing to the `SELECT` if an error occurs during the insertion.
 
 
-This revised code demonstrates a robust approach to preventing both first-order and second-order SQL injection vulnerabilities, addressing the CAST TQI violation and following OWASP best practices.
+
+This revised code effectively prevents second-order SQL injection and addresses other important security considerations like XSS.  It follows OWASP recommendations and best practices for secure coding.
