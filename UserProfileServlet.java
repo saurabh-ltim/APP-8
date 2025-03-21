@@ -24,19 +24,14 @@ public class UserProfileServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         
-        String userId = request.getParameter("userId"); 
-        String newEmail = request.getParameter("newEmail");
-
-        // Sanitize user inputs
-        String safeUserId = StringEscapeUtils.escapeHtml4(userId);
-        String safeNewEmail = StringEscapeUtils.escapeHtml4(newEmail);
-
+        String userId = StringEscapeUtils.escapeHtml4(request.getParameter("userId")); 
+        String newEmail = StringEscapeUtils.escapeHtml4(request.getParameter("newEmail"));
 
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
             String insertQuery = "INSERT INTO user_data (user_id, email) VALUES (?, ?)";
             try (PreparedStatement preparedStatement = conn.prepareStatement(insertQuery)) {
-                preparedStatement.setString(1, safeUserId);
-                preparedStatement.setString(2, safeNewEmail);
+                preparedStatement.setString(1, userId);
+                preparedStatement.setString(2, newEmail);
                 preparedStatement.executeUpdate();
             }
         } catch (SQLException e) {
@@ -47,7 +42,7 @@ public class UserProfileServlet extends HttpServlet {
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
             String query = "SELECT * FROM user_data WHERE user_id = ?";
             try (PreparedStatement preparedStatement = conn.prepareStatement(query)) {
-                preparedStatement.setString(1, safeUserId);
+                preparedStatement.setString(1, userId);
                 try (ResultSet rs = preparedStatement.executeQuery()) {
                     while (rs.next()) {
                         response.getWriter().write("User ID: " + rs.getString("user_id") + "<br>");
