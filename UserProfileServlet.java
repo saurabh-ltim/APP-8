@@ -12,6 +12,9 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 
+import org.apache.commons.text.StringEscapeUtils;
+
+
 public class UserProfileServlet extends HttpServlet {
     
     private static final String DB_URL = "jdbc:mysql://localhost:3306/userdb";
@@ -21,29 +24,31 @@ public class UserProfileServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         
-        String userId = request.getParameter("userId"); 
-        String newEmail = request.getParameter("newEmail");
+        String userId = StringEscapeUtils.escapeHtml4(request.getParameter("userId")); 
+        String newEmail = StringEscapeUtils.escapeHtml4(request.getParameter("newEmail"));
 
-        // VIOLATION: (CAST Rule 8420) Avoid second order SQL injection
-        //SQL injection (second order) - The application stores data in a database. At a later time, the data is subsequently read back into the application and included in another SQL query without prior validation and sanitization.                
-                
-        // Store user-provided data in the database
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
-            String insertQuery = "INSERT INTO user_data (user_id, email) VALUES ('" + userId + "', '" + newEmail + "')";
-            conn.createStatement().executeUpdate(insertQuery);
+            String insertQuery = "INSERT INTO user_data (user_id, email) VALUES (?, ?)";
+            try (PreparedStatement preparedStatement = conn.prepareStatement(insertQuery)) {
+                preparedStatement.setString(1, userId);
+                preparedStatement.setString(2, newEmail);
+                preparedStatement.executeUpdate();
+            }
         } catch (SQLException e) {
             response.getWriter().write("Error storing user data: " + e.getMessage());
             return;
         }
 
-        // Dangerous query — vulnerable to Second Order SQL Injection
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
-            String query = "SELECT * FROM user_data WHERE user_id = '" + userId + "'";
-            ResultSet rs = conn.createStatement().executeQuery(query);
-
-            while (rs.next()) {
-                response.getWriter().write("User ID: " + rs.getString("user_id") + "<br>");
-                response.getWriter().write("Email: " + rs.getString("email") + "<br>");
+            String query = "SELECT * FROM user_data WHERE user_id = ?";
+            try (PreparedStatement preparedStatement = conn.prepareStatement(query)) {
+                preparedStatement.setString(1, userId);
+                try (ResultSet rs = preparedStatement.executeQuery()) {
+                    while (rs.next()) {
+                        response.getWriter().write("User ID: " + rs.getString("user_id") + "<br>");
+                        response.getWriter().write("Email: " + rs.getString("email") + "<br>");
+                    }
+                }
             }
         } catch (SQLException e) {
             response.getWriter().write("Error fetching user data: " + e.getMessage());
