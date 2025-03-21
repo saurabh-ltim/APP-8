@@ -34,10 +34,10 @@ public class UserProfileServlet extends HttpServlet {
 
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
             String insertQuery = "INSERT INTO user_data (user_id, email) VALUES (?, ?)";
-            try (PreparedStatement pstmt = conn.prepareStatement(insertQuery)) {
-                pstmt.setString(1, safeUserId);
-                pstmt.setString(2, safeNewEmail);
-                pstmt.executeUpdate();
+            try (PreparedStatement preparedStatement = conn.prepareStatement(insertQuery)) {
+                preparedStatement.setString(1, safeUserId);
+                preparedStatement.setString(2, safeNewEmail);
+                preparedStatement.executeUpdate();
             }
         } catch (SQLException e) {
             response.getWriter().write("Error storing user data: " + e.getMessage());
@@ -46,9 +46,9 @@ public class UserProfileServlet extends HttpServlet {
 
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
             String query = "SELECT * FROM user_data WHERE user_id = ?";
-            try (PreparedStatement pstmt = conn.prepareStatement(query)) {
-                pstmt.setString(1, safeUserId); // Use sanitized input
-                try (ResultSet rs = pstmt.executeQuery()) {
+            try (PreparedStatement preparedStatement = conn.prepareStatement(query)) {
+                preparedStatement.setString(1, safeUserId);
+                try (ResultSet rs = preparedStatement.executeQuery()) {
                     while (rs.next()) {
                         response.getWriter().write("User ID: " + rs.getString("user_id") + "<br>");
                         response.getWriter().write("Email: " + rs.getString("email") + "<br>");
