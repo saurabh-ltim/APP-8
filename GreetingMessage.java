@@ -10,7 +10,7 @@ public class GreetingMessage {
         StringBuilder greeting = new StringBuilder("Hello");
 
         for (String name : names) {
-            if (name != null && !name.isEmpty()) {  // Input sanitization: Handle null and empty names
+            if (name != null) {
                 greeting.append(", ").append(name);
             }
         }
