@@ -12,9 +12,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 
-import org.apache.commons.text.StringEscapeUtils;
-
-
 public class UserProfileServlet extends HttpServlet {
     
     private static final String DB_URL = "jdbc:mysql://localhost:3306/userdb";
@@ -24,15 +21,15 @@ public class UserProfileServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         
-        String userId = StringEscapeUtils.escapeHtml4(request.getParameter("userId")); 
-        String newEmail = StringEscapeUtils.escapeHtml4(request.getParameter("newEmail"));
+        String userId = request.getParameter("userId"); 
+        String newEmail = request.getParameter("newEmail");
 
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
             String insertQuery = "INSERT INTO user_data (user_id, email) VALUES (?, ?)";
-            try (PreparedStatement preparedStatement = conn.prepareStatement(insertQuery)) {
-                preparedStatement.setString(1, userId);
-                preparedStatement.setString(2, newEmail);
-                preparedStatement.executeUpdate();
+            try (PreparedStatement pstmt = conn.prepareStatement(insertQuery)) {
+                pstmt.setString(1, userId);
+                pstmt.setString(2, newEmail);
+                pstmt.executeUpdate();
             }
         } catch (SQLException e) {
             response.getWriter().write("Error storing user data: " + e.getMessage());
@@ -41,9 +38,9 @@ public class UserProfileServlet extends HttpServlet {
 
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
             String query = "SELECT * FROM user_data WHERE user_id = ?";
-            try (PreparedStatement preparedStatement = conn.prepareStatement(query)) {
-                preparedStatement.setString(1, userId);
-                try (ResultSet rs = preparedStatement.executeQuery()) {
+            try (PreparedStatement pstmt = conn.prepareStatement(query)) {
+                pstmt.setString(1, userId);
+                try (ResultSet rs = pstmt.executeQuery()) {
                     while (rs.next()) {
                         response.getWriter().write("User ID: " + rs.getString("user_id") + "<br>");
                         response.getWriter().write("Email: " + rs.getString("email") + "<br>");
