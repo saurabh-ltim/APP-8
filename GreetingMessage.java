@@ -8,8 +8,8 @@ public class GreetingMessage {
         }
 
         StringBuilder greeting = new StringBuilder("Hello");
-
-        for (String name : names) {
+        for (int i = 0; i < names.length; i++) {
+            String name = names[i];
             if (name != null) {
                 greeting.append(", ").append(name);
             }
