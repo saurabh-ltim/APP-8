@@ -11,6 +11,7 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+
 import org.apache.commons.text.StringEscapeUtils;
 
 
@@ -37,7 +38,6 @@ public class UserProfileServlet extends HttpServlet {
             response.getWriter().write("Error storing user data: " + e.getMessage());
             return;
         }
-
 
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
             String query = "SELECT * FROM user_data WHERE user_id = ?";
