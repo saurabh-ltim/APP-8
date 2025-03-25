@@ -9,9 +9,8 @@ public class GreetingMessage {
 
         StringBuilder greeting = new StringBuilder("Hello");
 
-        for (int i = 0; i < names.length; i++) {
-            String name = names[i];
-            if (name != null) {
+        for (String name : names) {
+            if (name != null && !name.isEmpty()) {  // Input sanitization: Handle null and empty names
                 greeting.append(", ").append(name);
             }
         }
