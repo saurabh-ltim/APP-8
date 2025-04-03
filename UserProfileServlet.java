@@ -27,16 +27,11 @@ public class UserProfileServlet extends HttpServlet {
         String userId = request.getParameter("userId"); 
         String newEmail = request.getParameter("newEmail");
 
-        // Sanitize user inputs
-        String safeUserId = StringEscapeUtils.escapeHtml4(userId);
-        String safeNewEmail = StringEscapeUtils.escapeHtml4(newEmail);
-
-
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
             String insertQuery = "INSERT INTO user_data (user_id, email) VALUES (?, ?)";
             try (PreparedStatement pstmt = conn.prepareStatement(insertQuery)) {
-                pstmt.setString(1, safeUserId);
-                pstmt.setString(2, safeNewEmail);
+                pstmt.setString(1, StringEscapeUtils.escapeHtml4(userId));
+                pstmt.setString(2, StringEscapeUtils.escapeHtml4(newEmail));
                 pstmt.executeUpdate();
             }
         } catch (SQLException e) {
@@ -47,14 +42,14 @@ public class UserProfileServlet extends HttpServlet {
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
             String query = "SELECT * FROM user_data WHERE user_id = ?";
             try (PreparedStatement pstmt = conn.prepareStatement(query)) {
-                pstmt.setString(1, safeUserId); // Use sanitized input
+                pstmt.setString(1, userId); // No need to re-escape as it's already sanitized
                 try (ResultSet rs = pstmt.executeQuery()) {
                     while (rs.next()) {
                         response.getWriter().write("User ID: " + rs.getString("user_id") + "<br>");
                         response.getWriter().write("Email: " + rs.getString("email") + "<br>");
                     }
                 }
-            }
+            }            
         } catch (SQLException e) {
             response.getWriter().write("Error fetching user data: " + e.getMessage());
         }
