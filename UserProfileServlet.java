@@ -12,9 +12,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 
-import org.apache.commons.text.StringEscapeUtils;
-
-
 public class UserProfileServlet extends HttpServlet {
     
     private static final String DB_URL = "jdbc:mysql://localhost:3306/userdb";
@@ -30,8 +27,8 @@ public class UserProfileServlet extends HttpServlet {
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
             String insertQuery = "INSERT INTO user_data (user_id, email) VALUES (?, ?)";
             try (PreparedStatement pstmt = conn.prepareStatement(insertQuery)) {
-                pstmt.setString(1, StringEscapeUtils.escapeHtml4(userId));
-                pstmt.setString(2, StringEscapeUtils.escapeHtml4(newEmail));
+                pstmt.setString(1, userId);
+                pstmt.setString(2, newEmail);
                 pstmt.executeUpdate();
             }
         } catch (SQLException e) {
@@ -42,14 +39,13 @@ public class UserProfileServlet extends HttpServlet {
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
             String query = "SELECT * FROM user_data WHERE user_id = ?";
             try (PreparedStatement pstmt = conn.prepareStatement(query)) {
-                pstmt.setString(1, userId); // No need to re-escape as it's already sanitized
-                try (ResultSet rs = pstmt.executeQuery()) {
-                    while (rs.next()) {
-                        response.getWriter().write("User ID: " + rs.getString("user_id") + "<br>");
-                        response.getWriter().write("Email: " + rs.getString("email") + "<br>");
-                    }
+                pstmt.setString(1, userId);
+                ResultSet rs = pstmt.executeQuery();
+                while (rs.next()) {
+                    response.getWriter().write("User ID: " + rs.getString("user_id") + "<br>");
+                    response.getWriter().write("Email: " + rs.getString("email") + "<br>");
                 }
-            }            
+            }
         } catch (SQLException e) {
             response.getWriter().write("Error fetching user data: " + e.getMessage());
         }
