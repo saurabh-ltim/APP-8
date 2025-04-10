@@ -17,8 +17,9 @@ public class GreetingMessage {
         return greeting.toString();
     }
 
-    private String sanitizeInput(String name) {
-        //Implement appropriate sanitization based on OWASP guidelines.  Example below.  Adapt to your needs.
-        return name.replaceAll("[^a-zA-Z0-9\\s]", ""); 
+    private String sanitizeInput(String input) {
+        // Implement appropriate sanitization based on OWASP guidelines.  
+        // Example: remove potentially harmful characters
+        return input.replaceAll("[^a-zA-Z0-9 ,.]", ""); 
     }
 }
