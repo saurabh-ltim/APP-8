@@ -24,13 +24,13 @@ public class UserProfileServlet extends HttpServlet {
         String userId = request.getParameter("userId"); 
         String newEmail = request.getParameter("newEmail");
 
-        // Sanitize user inputs (Example using prepared statement)
+        // Sanitize user inputs (example using prepared statement)
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
             String insertQuery = "INSERT INTO user_data (user_id, email) VALUES (?, ?)";
-            try (PreparedStatement preparedStatement = conn.prepareStatement(insertQuery)) {
-                preparedStatement.setString(1, userId);
-                preparedStatement.setString(2, newEmail);
-                preparedStatement.executeUpdate();
+            try (PreparedStatement pstmt = conn.prepareStatement(insertQuery)) {
+                pstmt.setString(1, userId);
+                pstmt.setString(2, newEmail);
+                pstmt.executeUpdate();
             }
         } catch (SQLException e) {
             response.getWriter().write("Error storing user data: " + e.getMessage());
@@ -39,9 +39,9 @@ public class UserProfileServlet extends HttpServlet {
 
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
             String query = "SELECT * FROM user_data WHERE user_id = ?";
-            try (PreparedStatement preparedStatement = conn.prepareStatement(query)) {
-                preparedStatement.setString(1, userId);
-                ResultSet rs = preparedStatement.executeQuery();
+            try (PreparedStatement pstmt = conn.prepareStatement(query)) {
+                pstmt.setString(1, userId);
+                ResultSet rs = pstmt.executeQuery();
                 while (rs.next()) {
                     response.getWriter().write("User ID: " + rs.getString("user_id") + "<br>");
                     response.getWriter().write("Email: " + rs.getString("email") + "<br>");
