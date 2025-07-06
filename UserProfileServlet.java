@@ -24,8 +24,6 @@ public class UserProfileServlet extends HttpServlet {
         String userId = request.getParameter("userId"); 
         String newEmail = request.getParameter("newEmail");
 
-        // Sanitize user inputs (example using PreparedStatement)
-
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
             String insertQuery = "INSERT INTO user_data (user_id, email) VALUES (?, ?)";
             try (PreparedStatement pstmt = conn.prepareStatement(insertQuery)) {
