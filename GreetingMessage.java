@@ -5,24 +5,29 @@ import java.util.StringJoiner;
 public class GreetingMessage {
 
     public String buildGreetingMessage(String[] names) {
-        StringBuilder greetingBuilder = new StringBuilder("Hello");
+        if (names == null || names.length == 0) {
+            return "Hello!";
+        }
 
-        if (names != null && names.length > 0) {
-            StringJoiner nameJoiner = new StringJoiner(", ");
-
-            for (String name : names) {
-                if (name != null && !name.trim().isEmpty()) {
-                    nameJoiner.add(name.trim());
+        StringJoiner joiner = new StringJoiner(", ");
+        
+        for (String name : names) {
+            if (name != null) {
+                String trimmedName = name.trim();
+                if (!trimmedName.isEmpty()) {
+                    joiner.add(trimmedName);
                 }
-            }
-
-            if (nameJoiner.length() > 0) {
-                greetingBuilder.append(", ").append(nameJoiner.toString());
             }
         }
 
-        greetingBuilder.append("!");
+        StringBuilder greetingBuilder = new StringBuilder("Hello");
 
+        if (joiner.length() > 0) {
+            greetingBuilder.append(", ").append(joiner.toString());
+        }
+
+        greetingBuilder.append("!");
+        
         return greetingBuilder.toString();
     }
 }
