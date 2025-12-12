@@ -24,32 +24,31 @@ public class UserProfileServlet extends HttpServlet {
         String userId = request.getParameter("userId"); 
         String newEmail = request.getParameter("newEmail");
 
-        // Use PreparedStatement to prevent SQL injection (first and second order)
-        
-        // Store user-provided data in the database
+        // Mitigation: Use PreparedStatement to prevent SQL injection (first order)
+        // This also prevents second order SQL injection by ensuring properly formed data is stored.
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
              PreparedStatement insertStmt = conn.prepareStatement("INSERT INTO user_data (user_id, email) VALUES (?, ?)")) {
-            
             insertStmt.setString(1, userId);
             insertStmt.setString(2, newEmail);
             insertStmt.executeUpdate();
             
-            // Optionally, provide feedback that data was stored
             response.getWriter().write("User data stored successfully.<br>");
-            
         } catch (SQLException e) {
             response.getWriter().write("Error storing user data: " + e.getMessage());
-            return; // Stop processing if insertion fails
+            // Log the exception for debugging purposes (e.g., using a logging framework)
+            // System.err.println("SQL Exception during insert: " + e.getMessage());
+            return;
         }
 
-        // Safely retrieve data using PreparedStatement
+        // Mitigation: Use PreparedStatement to prevent SQL injection (second order)
+        // Data read from the database is retrieved using a parameterized query,
+        // preventing any malicious data previously stored from being executed.
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
              PreparedStatement selectStmt = conn.prepareStatement("SELECT user_id, email FROM user_data WHERE user_id = ?")) {
-            
             selectStmt.setString(1, userId);
             
             try (ResultSet rs = selectStmt.executeQuery()) {
-                if (!rs.isBeforeFirst()) { // Checks if the result set is empty
+                if (!rs.isBeforeFirst()) { // Check if there are any results
                     response.getWriter().write("No user data found for ID: " + userId + "<br>");
                 } else {
                     while (rs.next()) {
@@ -60,6 +59,8 @@ public class UserProfileServlet extends HttpServlet {
             }
         } catch (SQLException e) {
             response.getWriter().write("Error fetching user data: " + e.getMessage());
+            // Log the exception for debugging purposes
+            // System.err.println("SQL Exception during select: " + e.getMessage());
         }
     }
 }
