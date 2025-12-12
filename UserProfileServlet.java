@@ -24,33 +24,30 @@ public class UserProfileServlet extends HttpServlet {
         String userId = request.getParameter("userId"); 
         String newEmail = request.getParameter("newEmail");
 
-        // Mitigation: Use PreparedStatement with parameterized queries to prevent SQL injection.
-        // This addresses both first-order injection (direct input) and inherently
-        // mitigates second-order risks by ensuring all SQL operations use parameterized queries.
-                
-        // Store user-provided data in the database safely
-        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
-            String insertQuery = "INSERT INTO user_data (user_id, email) VALUES (?, ?)";
-            try (PreparedStatement pstmt = conn.prepareStatement(insertQuery)) {
-                pstmt.setString(1, userId);
-                pstmt.setString(2, newEmail);
-                pstmt.executeUpdate();
-            }
+        // Store user-provided data in the database using PreparedStatement
+        // This prevents SQL injection by treating user input as data, not executable SQL code.
+        String insertQuery = "INSERT INTO user_data (user_id, email) VALUES (?, ?)";
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+             PreparedStatement pstmt = conn.prepareStatement(insertQuery)) {
+            pstmt.setString(1, userId);
+            pstmt.setString(2, newEmail);
+            pstmt.executeUpdate();
         } catch (SQLException e) {
             response.getWriter().write("Error storing user data: " + e.getMessage());
             return;
         }
 
-        // Fetch user data safely using PreparedStatement
-        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
-            String query = "SELECT user_id, email FROM user_data WHERE user_id = ?";
-            try (PreparedStatement pstmt = conn.prepareStatement(query)) {
-                pstmt.setString(1, userId);
-                try (ResultSet rs = pstmt.executeQuery()) {
-                    while (rs.next()) {
-                        response.getWriter().write("User ID: " + rs.getString("user_id") + "<br>");
-                        response.getWriter().write("Email: " + rs.getString("email") + "<br>");
-                    }
+        // Fetch user data using PreparedStatement to prevent SQL injection.
+        // This ensures that even if 'userId' (or previously stored data) contained malicious input,
+        // it would not be executed as part of the query.
+        String selectQuery = "SELECT user_id, email FROM user_data WHERE user_id = ?";
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+             PreparedStatement pstmt = conn.prepareStatement(selectQuery)) {
+            pstmt.setString(1, userId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    response.getWriter().write("User ID: " + rs.getString("user_id") + "<br>");
+                    response.getWriter().write("Email: " + rs.getString("email") + "<br>");
                 }
             }
         } catch (SQLException e) {
