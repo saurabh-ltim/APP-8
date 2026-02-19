@@ -24,27 +24,32 @@ public class UserProfileServlet extends HttpServlet {
         String userId = request.getParameter("userId"); 
         String newEmail = request.getParameter("newEmail");
 
+        // Mitigation for CAST Rule 8420: Avoid second order SQL injection
+        // Use PreparedStatement to prevent SQL injection by separating SQL code from data.
+        // This mitigates both first-order (during insertion) and second-order (during retrieval) SQL injection.
+                
         // Store user-provided data in the database using PreparedStatement
-        // This prevents SQL injection by treating user input as data, not executable SQL code.
-        String insertQuery = "INSERT INTO user_data (user_id, email) VALUES (?, ?)";
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
-             PreparedStatement pstmt = conn.prepareStatement(insertQuery)) {
+             PreparedStatement pstmt = conn.prepareStatement("INSERT INTO user_data (user_id, email) VALUES (?, ?)")) {
+            
             pstmt.setString(1, userId);
             pstmt.setString(2, newEmail);
             pstmt.executeUpdate();
+            
         } catch (SQLException e) {
             response.getWriter().write("Error storing user data: " + e.getMessage());
             return;
         }
 
-        // Fetch user data using PreparedStatement to prevent SQL injection.
-        // This ensures that even if 'userId' (or previously stored data) contained malicious input,
-        // it would not be executed as part of the query.
-        String selectQuery = "SELECT user_id, email FROM user_data WHERE user_id = ?";
+        // Safely retrieve user data using PreparedStatement
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
-             PreparedStatement pstmt = conn.prepareStatement(selectQuery)) {
+             PreparedStatement pstmt = conn.prepareStatement("SELECT user_id, email FROM user_data WHERE user_id = ?")) {
+            
             pstmt.setString(1, userId);
             try (ResultSet rs = pstmt.executeQuery()) {
+                if (!rs.isBeforeFirst()) { // Check if any rows are returned
+                     response.getWriter().write("No user data found for ID: " + userId + "<br>");
+                }
                 while (rs.next()) {
                     response.getWriter().write("User ID: " + rs.getString("user_id") + "<br>");
                     response.getWriter().write("Email: " + rs.getString("email") + "<br>");
