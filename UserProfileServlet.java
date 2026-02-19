@@ -24,26 +24,31 @@ public class UserProfileServlet extends HttpServlet {
         String userId = request.getParameter("userId"); 
         String newEmail = request.getParameter("newEmail");
 
-        // VIOLATION: (CAST Rule 8420) Avoid second order SQL injection
-        //SQL injection (second order) - The application stores data in a database. At a later time, the data is subsequently read back into the application and included in another SQL query without prior validation and sanitization.                
-                
-        // Store user-provided data in the database
+        // Use PreparedStatement to prevent SQL injection
+        // Store user-provided data in the database safely
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
-            String insertQuery = "INSERT INTO user_data (user_id, email) VALUES ('" + userId + "', '" + newEmail + "')";
-            conn.createStatement().executeUpdate(insertQuery);
+            String insertQuery = "INSERT INTO user_data (user_id, email) VALUES (?, ?)";
+            try (PreparedStatement pstmt = conn.prepareStatement(insertQuery)) {
+                pstmt.setString(1, userId);
+                pstmt.setString(2, newEmail);
+                pstmt.executeUpdate();
+            }
         } catch (SQLException e) {
             response.getWriter().write("Error storing user data: " + e.getMessage());
             return;
         }
 
-        // Dangerous query — vulnerable to Second Order SQL Injection
+        // Fetch user data safely using PreparedStatement
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
-            String query = "SELECT * FROM user_data WHERE user_id = '" + userId + "'";
-            ResultSet rs = conn.createStatement().executeQuery(query);
-
-            while (rs.next()) {
-                response.getWriter().write("User ID: " + rs.getString("user_id") + "<br>");
-                response.getWriter().write("Email: " + rs.getString("email") + "<br>");
+            String selectQuery = "SELECT user_id, email FROM user_data WHERE user_id = ?";
+            try (PreparedStatement pstmt = conn.prepareStatement(selectQuery)) {
+                pstmt.setString(1, userId);
+                try (ResultSet rs = pstmt.executeQuery()) {
+                    while (rs.next()) {
+                        response.getWriter().write("User ID: " + rs.getString("user_id") + "<br>");
+                        response.getWriter().write("Email: " + rs.getString("email") + "<br>");
+                    }
+                }
             }
         } catch (SQLException e) {
             response.getWriter().write("Error fetching user data: " + e.getMessage());
