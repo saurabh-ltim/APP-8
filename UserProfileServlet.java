@@ -24,43 +24,48 @@ public class UserProfileServlet extends HttpServlet {
         String userId = request.getParameter("userId"); 
         String newEmail = request.getParameter("newEmail");
 
-        // Mitigation for CAST Rule 8420: Avoid second order SQL injection
-        // Use PreparedStatement to prevent SQL injection by parameterizing queries.
-        // This prevents both first-order injection at the insertion point and 
-        // second-order injection when the data is subsequently read and used.
-
-        // Store user-provided data in the database using PreparedStatement
-        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
-            String insertQuery = "INSERT INTO user_data (user_id, email) VALUES (?, ?)";
-            try (PreparedStatement pstmt = conn.prepareStatement(insertQuery)) {
-                pstmt.setString(1, userId);
-                pstmt.setString(2, newEmail);
-                pstmt.executeUpdate();
-                response.getWriter().write("User data stored successfully.<br>");
-            }
-        } catch (SQLException e) {
-            response.getWriter().write("Error storing user data: " + e.getMessage());
-            // Log the exception for debugging purposes (e.g., e.printStackTrace();)
+        // Validate input - basic check for non-null/empty. More robust validation (e.g., regex for email)
+        // should be implemented in a real application.
+        if (userId == null || userId.trim().isEmpty() || newEmail == null || newEmail.trim().isEmpty()) {
+            response.getWriter().write("Error: User ID and Email cannot be empty.");
             return;
         }
 
-        // Fetch user data using PreparedStatement to prevent SQL Injection
-        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
-            String selectQuery = "SELECT user_id, email FROM user_data WHERE user_id = ?";
-            try (PreparedStatement pstmt = conn.prepareStatement(selectQuery)) {
-                pstmt.setString(1, userId);
-                try (ResultSet rs = pstmt.executeQuery()) {
-                    if (rs.next()) {
-                        response.getWriter().write("User ID: " + rs.getString("user_id") + "<br>");
-                        response.getWriter().write("Email: " + rs.getString("email") + "<br>");
-                    } else {
-                        response.getWriter().write("User not found.<br>");
-                    }
+        // Mitigated: Using PreparedStatement to prevent SQL injection (both first and second order)
+        // Store user-provided data in the database securely
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+             PreparedStatement pstmtInsert = conn.prepareStatement("INSERT INTO user_data (user_id, email) VALUES (?, ?)")) {
+            
+            pstmtInsert.setString(1, userId);
+            pstmtInsert.setString(2, newEmail);
+            pstmtInsert.executeUpdate();
+            
+        } catch (SQLException e) {
+            response.getWriter().write("Error storing user data: " + e.getMessage());
+            // Log the exception for debugging purposes
+            getServletContext().log("SQL Error storing user data", e);
+            return;
+        }
+
+        // Mitigated: Using PreparedStatement to prevent SQL injection when retrieving data
+        // Retrieve and display user data
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+             PreparedStatement pstmtSelect = conn.prepareStatement("SELECT user_id, email FROM user_data WHERE user_id = ?")) {
+            
+            pstmtSelect.setString(1, userId);
+            
+            try (ResultSet rs = pstmtSelect.executeQuery()) {
+                if (rs.next()) {
+                    response.getWriter().write("User ID: " + rs.getString("user_id") + "<br>");
+                    response.getWriter().write("Email: " + rs.getString("email") + "<br>");
+                } else {
+                    response.getWriter().write("User not found after insertion.");
                 }
             }
         } catch (SQLException e) {
             response.getWriter().write("Error fetching user data: " + e.getMessage());
-            // Log the exception for debugging purposes (e.g., e.printStackTrace();)
+            // Log the exception for debugging purposes
+            getServletContext().log("SQL Error fetching user data", e);
         }
     }
 }
