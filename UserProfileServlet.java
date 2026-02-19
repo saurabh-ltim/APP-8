@@ -24,16 +24,19 @@ public class UserProfileServlet extends HttpServlet {
         String userId = request.getParameter("userId"); 
         String newEmail = request.getParameter("newEmail");
 
-        // Use PreparedStatement to prevent SQL injection, including second-order.
-        // PreparedStatement handles proper escaping of user inputs.
-                
-        // Store user-provided data in the database
+        // Mitigation for CAST Rule 8420: Avoid second order SQL injection
+        // Use PreparedStatement to prevent SQL injection by parameterizing queries.
+        // This prevents both first-order injection at the insertion point and 
+        // second-order injection when the data is subsequently read and used.
+
+        // Store user-provided data in the database using PreparedStatement
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
             String insertQuery = "INSERT INTO user_data (user_id, email) VALUES (?, ?)";
             try (PreparedStatement pstmt = conn.prepareStatement(insertQuery)) {
                 pstmt.setString(1, userId);
                 pstmt.setString(2, newEmail);
                 pstmt.executeUpdate();
+                response.getWriter().write("User data stored successfully.<br>");
             }
         } catch (SQLException e) {
             response.getWriter().write("Error storing user data: " + e.getMessage());
@@ -41,15 +44,17 @@ public class UserProfileServlet extends HttpServlet {
             return;
         }
 
-        // Safe query using PreparedStatement to prevent SQL Injection
+        // Fetch user data using PreparedStatement to prevent SQL Injection
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
-            String query = "SELECT user_id, email FROM user_data WHERE user_id = ?"; // Select specific columns
-            try (PreparedStatement pstmt = conn.prepareStatement(query)) {
+            String selectQuery = "SELECT user_id, email FROM user_data WHERE user_id = ?";
+            try (PreparedStatement pstmt = conn.prepareStatement(selectQuery)) {
                 pstmt.setString(1, userId);
                 try (ResultSet rs = pstmt.executeQuery()) {
-                    while (rs.next()) {
+                    if (rs.next()) {
                         response.getWriter().write("User ID: " + rs.getString("user_id") + "<br>");
                         response.getWriter().write("Email: " + rs.getString("email") + "<br>");
+                    } else {
+                        response.getWriter().write("User not found.<br>");
                     }
                 }
             }
